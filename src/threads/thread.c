@@ -233,7 +233,7 @@ thread_block (void)
    make the running thread ready.)
 
    This function does not preempt the running thread.  This can
-   be important: if the caller had disabled interrupts itself,
+   be important: if the caller had disableschd interrupts itself,
    it may expect that it can atomically unblock a thread and
    update other data. */
 void
