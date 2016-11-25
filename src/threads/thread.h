@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -102,8 +103,14 @@ struct thread
     unsigned magic;                     /* Detects stack overflow. */
     /* Used by timer.c */
     int64_t wakeup_time;                /* tick at which a sleeping thread will wake up */
-    
-    struct list_elem sleeping_elem;     /* List element for sleeping_list*/
+   
+    /* Used by timer.c */
+    struct semaphore blocked;           /* Used for blocking the thread,
+                                           should be initialized 0 before using*/
+
+    /* Used by timer_interrupt (), so interrupts should be 
+       disabled before accessing it from a kernel thread */
+    struct list_elem sleeping_elem;     /* List element for sleeping_threads_list*/
   
   };
 

@@ -18,7 +18,7 @@
 #error TIMER_FREQ <= 1000 recommended
 #endif
 
-static struct list sleeping_list;
+static struct list sleeping_threads_list;
 
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
@@ -40,7 +40,7 @@ timer_init (void)
 {
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
-  list_init(&sleeping_list);
+  list_init(&sleeping_threads_list);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -97,13 +97,17 @@ timer_sleep (int64_t ticks)
 
   ASSERT (intr_get_level () == INTR_ON);
   
-  struct thread *current_t = thread_current ();
-  current_t -> wakeup_time = start + ticks;
-  list_push_back(&sleeping_list, &(current_t -> sleeping_elem));
+  struct thread *t = thread_current ();
+  t->wakeup_time = start + ticks;
+  sema_init(&(t->blocked), 0);
+  /* Disable interrupts because sleeping_threads_list is accessed 
+     from timer interrupt handler. */
   enum intr_level old_level;
   old_level = intr_disable ();
-  thread_block ();
+  list_push_back(&sleeping_threads_list, &(t->sleeping_elem));
   intr_set_level (old_level);
+  /* Block calling thread.  */
+  sema_down(&(t->blocked));
 }
 
 
@@ -184,13 +188,14 @@ timer_interrupt (struct intr_frame *args UNUSED)
    ticks++;
    thread_tick ();
    struct list_elem *e;
-   for (e = list_begin (&sleeping_list); e != list_end (&sleeping_list);
+   /* Iterate through sleeping_threads and wakeup them when it time*/
+   for (e = list_begin (&sleeping_threads_list); e != list_end (&sleeping_threads_list);
            e = list_next (e))
         {
           struct thread *t = list_entry (e, struct thread, sleeping_elem);
-          if(t -> wakeup_time < timer_ticks ()) {
-            list_remove (&(t -> sleeping_elem));
-            thread_unblock (t);
+          if(t->wakeup_time <= timer_ticks ()) {
+            list_remove (&(t->sleeping_elem));
+            sema_up(&(t->blocked));
           }
         }
 }
