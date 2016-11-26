@@ -20,9 +20,10 @@
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
 
-/* List of processes in THREAD_READY state, that is, processes
-   that are ready to run but not actually running. */
-static struct list ready_list;
+/* Array of lists of processes in THREAD_READY state, that is, processes
+   that are ready to run but not actually running, 
+   each level of priority is represented by a separate list */
+static struct list ready_list[PRI_MAX + 1];
 
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
@@ -90,7 +91,8 @@ thread_init (void)
   ASSERT (intr_get_level () == INTR_OFF);
 
   lock_init (&tid_lock);
-  list_init (&ready_list);
+  for(int i = PRI_MAX; i >= PRI_MIN; i--)
+    list_init (&ready_list[i]);
   list_init (&all_list);
 
   /* Set up a thread structure for the running thread. */
@@ -245,9 +247,10 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  list_push_back (&ready_list[t->priority], &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
+ 
 }
 
 /* Returns the name of the running thread. */
@@ -316,7 +319,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    list_push_back (&ready_list[cur->priority], &cur->elem);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -343,7 +346,12 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+  struct thread *t = thread_current ();
+  /* Remove from current_priority list */
+  list_remove (&(t->elem));
+  /* Add to new_priority list */
+  list_push_back (&ready_list[new_priority], &(t->elem));
+  t->priority = new_priority;
 }
 
 /* Returns the current thread's priority. */
@@ -493,10 +501,14 @@ alloc_frame (struct thread *t, size_t size)
 static struct thread *
 next_thread_to_run (void) 
 {
-  if (list_empty (&ready_list))
+    /* Examine each priority from higher to lower */
+    for(int i = PRI_MAX; i >= PRI_MIN; i--)
+    {
+      if (!list_empty (&ready_list[i]))
+        return list_entry (list_pop_front (&ready_list[i]), struct thread, elem);
+    }
+    /* All priority lists were empty, no thread available to run */
     return idle_thread;
-  else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
 }
 
 /* Completes a thread switch by activating the new thread's page

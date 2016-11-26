@@ -105,8 +105,9 @@ struct thread
     int64_t wakeup_time;                /* tick at which a sleeping thread will wake up */
    
     /* Used by timer.c */
-    struct semaphore blocked;           /* Used for blocking the thread,
-                                           should be initialized 0 before using*/
+    struct semaphore blocked;           /* Used for blocking the thread when it is sleeping,
+                                           should be initialized 0 before using, shouldn't be 
+                                           used for any other purposes*/
 
     /* Used by timer_interrupt (), so interrupts should be 
        disabled before accessing it from a kernel thread */
