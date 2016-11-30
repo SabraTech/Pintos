@@ -94,6 +94,15 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
+    /* Used by synch.c */
+    struct list_elem cond_waiter_elem; /* List element to put thread in list of
+                                          threads waiting on condition. */
+                                          /* Used by timer_interrupt (), so interrupts should be
+                                             disabled before accessing it from a kernel thread */
+
+    struct list_elem sleeping_elem;     /* List element for sleeping_threads_list*/
+
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -103,17 +112,18 @@ struct thread
     unsigned magic;                     /* Detects stack overflow. */
     /* Used by timer.c */
     int64_t wakeup_time;                /* tick at which a sleeping thread will wake up */
-   
+
     /* Used by timer.c */
     struct semaphore blocked;           /* Used for blocking the thread when it is sleeping,
-                                           should be initialized 0 before using, shouldn't be 
+                                           should be initialized 0 before using, shouldn't be
                                            used for any other purposes*/
 
-    /* Used by timer_interrupt (), so interrupts should be 
-       disabled before accessing it from a kernel thread */
-    struct list_elem sleeping_elem;     /* List element for sleeping_threads_list*/
-  
+    struct semaphore blocked_on_cond    /* Used for blocking thread when it is
+                                           waiting on a condition variable. */
+
   };
+
+bool priority_comp (const struct list_elem *a, const struct list_elem *b, void *aux);
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
