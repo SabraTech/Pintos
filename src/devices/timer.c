@@ -187,6 +187,19 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
    ticks++;
    thread_tick ();
+
+   /* 4.4BSD Scheduler */
+   if(thread_mlfqs){
+     mlfqs_incr_recent_cpu();
+     /* 1 sec */
+     if(ticks % TIMER_FREQ == 0){
+       mlfqs_refresh();
+     }
+     /* 4 ticks */
+     if(ticks % 4 == 0){
+       mlfqs_update_priority(thread_current());
+     }
+   }
    struct list_elem *e;
    /* Iterate through sleeping_threads and wakeup them when it time*/
    for (e = list_begin (&sleeping_threads_list); e != list_end (&sleeping_threads_list);
