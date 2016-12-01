@@ -134,6 +134,13 @@ struct thread
     struct thread *donee;                /* thread whose donar list contains me,
                                             used to propagate priority down to
                                             all donees  */
+
+    int nice;                          /* Value that determines how "nice" the
+                                          thread should be to other
+                                          threads, between -20 to 20 and
+                                          initialize with value of zero. */
+    int recent_cpu;                    /* recent_cpu to measure how much CPU
+                                          time each process has received "recently." */
   };
 
 bool priority_comp (const struct list_elem *a, const struct list_elem *b, void *aux);
@@ -142,6 +149,9 @@ bool priority_comp (const struct list_elem *a, const struct list_elem *b, void *
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 extern bool thread_mlfqs;
+
+/*a moving average of the number of threads ready to run.*/
+int load_avg;
 
 void thread_init (void);
 void thread_start (void);
