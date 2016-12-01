@@ -118,9 +118,22 @@ struct thread
                                            should be initialized 0 before using, shouldn't be
                                            used for any other purposes*/
 
-    struct semaphore blocked_on_cond    /* Used for blocking thread when it is
+    struct semaphore blocked_on_cond;    /* Used for blocking thread when it is
                                            waiting on a condition variable. */
 
+    int base_priority;
+
+    struct list donar_list;               /* list of threads that donated
+                                             priority to this thread. */
+
+    struct lock *requested_lock;          /* Lock that the thread tried to access
+                                             but failed due to priority inversion. */
+
+    struct list_elem donar_elem;         /* List element for donar list. */
+
+    struct thread *donee;                /* thread whose donar list contains me,
+                                            used to propagate priority down to
+                                            all donees  */
   };
 
 bool priority_comp (const struct list_elem *a, const struct list_elem *b, void *aux);
@@ -161,4 +174,5 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+void donate_priority (struct thread* donee);
 #endif /* threads/thread.h */

@@ -357,15 +357,57 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
+
+/* Donate priority of current_thread () to donee thread. */
+void
+donate_priority (struct thread* donee)
+{
+  struct thread *t = thread_current ();
+
+  ASSERT (donee != NULL);
+  ASSERT (t->priority > donee->priority);
+
+  /* Propagate donation down to all donees. */
+  while (donee != NULL)
+    {
+      /* To avoid duplicates in case of nested donations. M -> L then H -> M
+         and M -> L then you shouldn't push M into L's list again. */
+      if (donee != t->donee)
+        list_push_back(&donee->donar_list, &t->donar_elem);
+      donee->priority = t->priority;
+      t->donee = donee;
+      /* Move down. */
+      t = donee;
+      donee = donee->donee;
+    }
+}
+
+
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority)
 {
   struct thread *t = thread_current ();
-  t->priority = new_priority;
+  /* current_thread () hasn't been donated. */
+  if (t->priority == t->base_priority)
+    {
+      t->priority = new_priority;
+      t->base_priority = new_priority;
+    }
+  else if (new_priority < t->priority) /* current_thread () has been donated and
+                                          its donated priority is higher than
+                                          new_priority.  */
+    {
+      t->base_priority = new_priority;
+    }
+  else
+    {
+      t->priority = new_priority;
+      t->base_priority = new_priority;
+    }
   struct list_elem *max_elem = list_max(&ready_list, priority_comp, NULL);
-  int max_priority =  list_entry (max_elem, struct thread, elem);
-  if(new_priority < max_priority)
+  int max_priority =  list_entry (max_elem, struct thread, elem)->priority;
+  if(t->priority < max_priority)
       thread_yield ();
 }
 
@@ -491,7 +533,13 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->base_priority = priority;
   t->magic = THREAD_MAGIC;
+
+  list_init (&t->donar_list);
+  t->requested_lock = NULL;
+  t->donee = NULL;
+
   list_push_back (&all_list, &t->allelem);
 }
 
