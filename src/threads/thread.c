@@ -38,6 +38,9 @@ static struct thread *initial_thread;
 /* Lock used by allocate_tid(). */
 static struct lock tid_lock;
 
+/*a moving average of the number of threads ready to run.*/
+fixedpoint load_avg;
+
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame
   {
@@ -566,6 +569,12 @@ static bool
 is_thread (struct thread *t)
 {
   return t != NULL && t->magic == THREAD_MAGIC;
+}
+
+bool 
+is_idle_thread (struct thread *t)
+{
+  return t == idle_thread;
 }
 
 /* Does basic initialization of T as a blocked thread named

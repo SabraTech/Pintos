@@ -203,7 +203,8 @@ timer_interrupt (struct intr_frame *args UNUSED)
    if(thread_mlfqs)
     {
        struct thread *cur = thread_current ();
-       cur->recent_cpu = add_int (cur->recent_cpu, 1);
+       if(!is_idle_thread (cur))
+         cur->recent_cpu = add_int (cur->recent_cpu, 1);
        if(ticks % TIMER_FREQ == 0)
          thread_mlfqs_update ();
        if(ticks % 4 == 0)

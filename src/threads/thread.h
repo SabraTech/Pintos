@@ -151,9 +151,6 @@ bool priority_comp (const struct list_elem *a, const struct list_elem *b, void *
    Controlled by kernel command-line option "-o mlfqs". */
 extern bool thread_mlfqs;
 
-/*a moving average of the number of threads ready to run.*/
-int load_avg;
-
 void thread_init (void);
 void thread_start (void);
 
@@ -179,6 +176,8 @@ void thread_foreach (thread_action_func *, void *);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
+
+bool is_idle_thread (struct thread *t);
 
 int thread_get_nice (void);
 void thread_set_nice (int);
