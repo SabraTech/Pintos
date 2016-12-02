@@ -11,7 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
-#include "fixed-point.h"
+#include "threads/fixed-point.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -458,8 +458,8 @@ mlfqs_update_priority(struct thread *t) {
       return;
     }
 
-  int new_priority = to_fp(PRI_MAX);
-  new_priority = sub_fp(new_priority, div_int(t->recent_cpu, 4));
+  int new_priority = to_fixed_point(PRI_MAX);
+  new_priority = sub_fixed_point(new_priority, div_int(t->recent_cpu, 4));
   new_priority = sub_int(new_priority, 2 * t-> nice);
   t->priority = to_int_floor(new_priority);
   /* if the calculated priority was out the range */
@@ -495,8 +495,8 @@ mlfqs_refresh(void) {
     {
       readyAndRunning_threads++;
     }
-  load_avg = add_fp(div_int(mul_int(load_avg,59),60),
-                    div_int(to_fp(readyAndRunning_threads),60));
+  load_avg = add_fixed_point(div_int(mul_int(load_avg,59),60),
+                    div_int(to_fixed_point(readyAndRunning_threads),60));
 
   /* recalculate recent_cpu. */
   struct thread *t;
@@ -516,8 +516,8 @@ mlfqs_refresh(void) {
 void
 mlfqs_calculate_recent_cpu(struct thread *t)
 {
-  int brackets = div_fp(mul_int(load_avg, 2),add_int(mul_int(load_avg,2),1));
-  int term = mul_fp(brackets, t->recent_cpu);
+  int brackets = div_fixed_point(mul_int(load_avg, 2),add_int(mul_int(load_avg,2),1));
+  int term = mul_fixed_point(brackets, t->recent_cpu);
   t->recent_cpu = add_int(term, t->nice);
 }
 
