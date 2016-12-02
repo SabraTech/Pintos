@@ -390,23 +390,17 @@ void
 thread_set_priority (int new_priority)
 {
   struct thread *t = thread_current ();
-  /* current_thread () hasn't been donated. */
-  if (t->priority == t->base_priority)
-    {
-      t->priority = new_priority;
-      t->base_priority = new_priority;
-    }
-  else if (new_priority < t->priority) /* current_thread () has been donated and
-                                          its donated priority is higher than
-                                          new_priority.  */
-    {
-      t->base_priority = new_priority;
-    }
-  else
-    {
-      t->priority = new_priority;
-      t->base_priority = new_priority;
-    }
+  /* disable interrupts to avoid race conditions in priority */
+  enum intr_level old_level;
+  old_level = intr_disable ();
+  /* current_thread () hasn't been donated or 
+     has been donated and its donated priority is higher than new_priority. */
+  if (t->priority == t->base_priority || new_priority > t->priority)
+    t->priority = new_priority;
+
+  t->base_priority = new_priority;
+  intr_set_level (old_level); // enable interrupts again
+  
   struct list_elem *max_elem = list_max(&ready_list, priority_comp, NULL);
   int max_priority =  list_entry (max_elem, struct thread, elem)->priority;
   if(t->priority < max_priority)
