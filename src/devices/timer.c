@@ -33,7 +33,16 @@ static bool too_many_loops (unsigned loops);
 static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
+static bool sleeping_comp (const struct list_elem *a, const struct list_elem *b, 
+                            void *aux UNUSED);
 
+static bool sleeping_comp (const struct list_elem *a, const struct list_elem *b, 
+                            void *aux UNUSED)
+{
+  struct thread *thread_a = list_entry (a, struct thread, sleeping_elem);
+  struct thread *thread_b = list_entry (b, struct thread, sleeping_elem);
+  return thread_a->wakeup_time < thread_b->wakeup_time;
+}
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
 void
@@ -105,7 +114,8 @@ timer_sleep (int64_t ticks)
      from timer interrupt handler. */
   enum intr_level old_level;
   old_level = intr_disable ();
-  list_push_back(&sleeping_threads_list, &(t->sleeping_elem));
+  list_insert_ordered(&sleeping_threads_list, &(t->sleeping_elem), 
+                       sleeping_comp, NULL);
   intr_set_level (old_level);
   /* Block calling thread.  */
   sema_down(&(t->blocked));
@@ -210,6 +220,10 @@ timer_interrupt (struct intr_frame *args UNUSED)
             {
               list_remove (&(t->sleeping_elem));
               sema_up(&(t->blocked));
+            }
+          else
+            {
+              break;
             }
         }
 }
