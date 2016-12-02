@@ -1,0 +1,71 @@
+TOTAL TESTING SCORE: 100.0%
+ALL TESTED PASSED -- PERFECT SCORE
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+SUMMARY BY TEST SET
+
+Test Set                                      Pts Max  % Ttl  % Max
+--------------------------------------------- --- --- ------ ------
+tests/threads/Rubric.alarm                     18/ 18  20.0%/ 20.0%
+tests/threads/Rubric.priority                  38/ 38  40.0%/ 40.0%
+tests/threads/Rubric.mlfqs                     37/ 37  40.0%/ 40.0%
+--------------------------------------------- --- --- ------ ------
+Total                                                 100.0%/100.0%
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+SUMMARY OF INDIVIDUAL TESTS
+
+Functionality and robustness of alarm clock (tests/threads/Rubric.alarm):
+	     4/ 4 tests/threads/alarm-single
+	     4/ 4 tests/threads/alarm-multiple
+	     4/ 4 tests/threads/alarm-simultaneous
+	     4/ 4 tests/threads/alarm-priority
+
+	     1/ 1 tests/threads/alarm-zero
+	     1/ 1 tests/threads/alarm-negative
+
+	- Section summary.
+	      6/  6 tests passed
+	     18/ 18 points subtotal
+
+Functionality of priority scheduler (tests/threads/Rubric.priority):
+	     3/ 3 tests/threads/priority-change
+	     3/ 3 tests/threads/priority-preempt
+
+	     3/ 3 tests/threads/priority-fifo
+	     3/ 3 tests/threads/priority-sema
+	     3/ 3 tests/threads/priority-condvar
+
+	     3/ 3 tests/threads/priority-donate-one
+	     3/ 3 tests/threads/priority-donate-multiple
+	     3/ 3 tests/threads/priority-donate-multiple2
+	     3/ 3 tests/threads/priority-donate-nest
+	     5/ 5 tests/threads/priority-donate-chain
+	     3/ 3 tests/threads/priority-donate-sema
+	     3/ 3 tests/threads/priority-donate-lower
+
+	- Section summary.
+	     12/ 12 tests passed
+	     38/ 38 points subtotal
+
+Functionality of advanced scheduler (tests/threads/Rubric.mlfqs):
+	     5/ 5 tests/threads/mlfqs-load-1
+	     5/ 5 tests/threads/mlfqs-load-60
+	     3/ 3 tests/threads/mlfqs-load-avg
+
+	     5/ 5 tests/threads/mlfqs-recent-1
+
+	     5/ 5 tests/threads/mlfqs-fair-2
+	     3/ 3 tests/threads/mlfqs-fair-20
+
+	     4/ 4 tests/threads/mlfqs-nice-2
+	     2/ 2 tests/threads/mlfqs-nice-10
+
+	     5/ 5 tests/threads/mlfqs-block
+
+	- Section summary.
+	      9/  9 tests passed
+	     37/ 37 points subtotal
+
