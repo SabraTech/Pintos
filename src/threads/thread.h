@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/synch.h"
+#include "threads/fixed-point.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -135,11 +136,11 @@ struct thread
                                             used to propagate priority down to
                                             all donees  */
 
-    int nice;                          /* Value that determines how "nice" the
-                                          thread should be to other
-                                          threads, between -20 to 20 and
-                                          initialize with value of zero. */
-    int recent_cpu;                    /* recent_cpu to measure how much CPU
+    int nice;                            /* Value that determines how "nice" the
+                                            thread should be to other
+                                            threads, between -20 to 20 and
+                                            initialize with value of zero. */
+    fixedpoint recent_cpu;               /* recent_cpu to measure how much CPU
                                           time each process has received "recently." */
   };
 
@@ -183,6 +184,9 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+void thread_mlfqs_calc_priority (struct thread *t);
+void thread_mlfqs_update (void);
 
 void donate_priority (struct thread* donee);
 #endif /* threads/thread.h */

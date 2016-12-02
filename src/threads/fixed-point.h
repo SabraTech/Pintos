@@ -2,24 +2,26 @@
 
 #define F (1 << 14)
 
-int to_fixed_point(int n);
+typedef int fixedpoint;
 
-int to_int_floor(int x);
+fixedpoint to_fixed_point (int n);
 
-int to_int_round(int x);
+int floor_to_int (fixedpoint x);
 
-int add_int(int x, int n);
+int round_to_int (fixedpoint x);
 
-int add_fixed_point(int x, int y);
+fixedpoint add_int (fixedpoint x, int n);
 
-int sub_int(int x, int n);
+fixedpoint add_fixed_point (fixedpoint x, fixedpoint y);
 
-int sub_fixed_point(int x, int y);
+fixedpoint sub_int (fixedpoint x, int n);
 
-int mul_int(int x, int n);
+fixedpoint sub_fixed_point (fixedpoint x, fixedpoint y);
 
-int mul_fixed_point(int x, int y);
+fixedpoint mul_int (fixedpoint x, int n);
 
-int div_int(int x, int n);
+fixedpoint mul_fixed_point (fixedpoint x, fixedpoint y);
 
-int div_fixed_point(int x, int y);
+fixedpoint div_int (fixedpoint x, int n);
+
+fixedpoint div_fixed_point (fixedpoint x, fixedpoint y);

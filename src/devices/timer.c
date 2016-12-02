@@ -3,11 +3,12 @@
 #include <inttypes.h>
 #include <round.h>
 #include <stdio.h>
+#include <list.h>
 #include "devices/pit.h"
 #include "threads/interrupt.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
-#include <list.h>
+#include "threads/fixed-point.h"
 
 /* See [8254] for hardware details of the 8254 timer chip. */
 
@@ -189,17 +190,15 @@ timer_interrupt (struct intr_frame *args UNUSED)
    thread_tick ();
 
    /* Advanced scheduler */
-   if(thread_mlfqs){
-     mlfqs_incr_recent_cpu();
-     if(ticks % TIMER_FREQ == 0)
-      {
-        mlfqs_refresh();
-      }
-     if(ticks % 4 == 0)
-      {
-        mlfqs_update_priority(thread_current());
-      }
-   }
+   if(thread_mlfqs)
+    {
+       struct thread *cur = thread_current ();
+       cur->recent_cpu = add_int (cur->recent_cpu, 1);
+       if(ticks % TIMER_FREQ == 0)
+         thread_mlfqs_update ();
+       if(ticks % 4 == 0)
+         thread_mlfqs_calc_priority (cur);
+    }
 
    struct list_elem *e;
    /* Iterate through sleeping_threads and wakeup them when it time*/
