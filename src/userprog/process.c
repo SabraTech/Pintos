@@ -77,7 +77,7 @@ start_process (void *file_name_)
   success = load (file_name, &if_.eip, &if_.esp);
 
   /* If load failed, quit. */
-  palloc_free_page (file_name);
+  palloc_free_page (fn_copy);
   if (!success) 
     thread_exit ();
 
@@ -98,17 +98,16 @@ static void
 main_stack_setup (char *cmd, int argc, void **esp)
 {
   printf("in_main\n");
-  char *token;
-  char *save_ptr;
-  char **argv = malloc (sizeof(char*) * argc);
+  char *token, *save_ptr;
+  char **argv = malloc (sizeof(char*) * (argc + 2));
   int padding;
-  int i;
+  int i, token_len;
   
   token = strtok_r (cmd, " ", &save_ptr);
   for(i = 0; token != NULL; i++)
    {
-     int token_len = strlen (token) + 1;
-     *esp = *esp - sizeof(char) * token_len;
+     token_len = strlen (token) + 1;
+     *esp -= sizeof(char) * token_len;
      argv[i] = *esp;
      memcpy (*esp, token, token_len);
      token = strtok_r (NULL, " ", &save_ptr);
@@ -142,6 +141,8 @@ main_stack_setup (char *cmd, int argc, void **esp)
     /* push dummy return address */
     *esp -= sizeof(void (*) ());
     memset (*esp, 0, sizeof(void (*) ()));
+    
+    free (argv);
 }
 
 /* Waits for thread TID to die and returns its exit status.  If
