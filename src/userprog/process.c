@@ -20,7 +20,7 @@
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
-
+static void main_stack_setup (char *cmd, int argc, void **esp);
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
@@ -37,7 +37,7 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
-
+  printf(">>>>>>>>exec\n");
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
@@ -50,9 +50,24 @@ process_execute (const char *file_name)
 static void
 start_process (void *file_name_)
 {
-  char *file_name = file_name_;
+  char *file_name, *token;
   struct intr_frame if_;
   bool success;
+  int argc = 0;
+  
+  char *fn_copy = palloc_get_page (0);
+  if (fn_copy == NULL)
+    return TID_ERROR;
+  strlcpy (fn_copy, (char*) file_name_, PGSIZE);
+  char *save_ptr;
+  file_name = strtok_r (fn_copy, " ", &save_ptr);
+  
+  token = file_name;
+  while (token != NULL)
+   {
+     ++argc;
+     token = strtok_r (NULL, " ", &save_ptr);
+   }
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -66,6 +81,9 @@ start_process (void *file_name_)
   if (!success) 
     thread_exit ();
 
+  /* push main functions arguments to stack */
+  main_stack_setup ((char*) file_name_, argc, &if_.esp);
+  printf("after_main\n");
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -74,6 +92,56 @@ start_process (void *file_name_)
      and jump to it. */
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
   NOT_REACHED ();
+}
+
+static void
+main_stack_setup (char *cmd, int argc, void **esp)
+{
+  printf("in_main\n");
+  char *token;
+  char *save_ptr;
+  char **argv = malloc (sizeof(char*) * argc);
+  int padding;
+  int i;
+  
+  token = strtok_r (cmd, " ", &save_ptr);
+  for(i = 0; token != NULL; i++)
+   {
+     int token_len = strlen (token) + 1;
+     *esp = *esp - sizeof(char) * token_len;
+     argv[i] = *esp;
+     memcpy (*esp, token, token_len);
+     token = strtok_r (NULL, " ", &save_ptr);
+   }
+   argv[argc] = 0;
+   
+   /* add pading so that memory is multiple of 4 */
+   padding = 4 - ((int) *esp % 4);
+   if (padding != 0) 
+    {
+      *esp -= sizeof(char) * padding;
+      memset (*esp, 0, sizeof(char) * padding);
+    }
+    
+    /* push pointers to arguments strings to stack starting with null */
+    for(i = argc; i >= 0; --i)
+      {
+        *esp -= sizeof(char*);
+        memcpy (*esp, &argv[i], sizeof(char*));
+      }
+    
+    /* push argv pointer */
+    token = *esp;
+    *esp -= sizeof(char*);
+    memcpy (*esp, token, sizeof(char*));
+    
+    /* push argc to stack */
+    *esp -= sizeof(int);
+    memcpy (*esp, &argc, sizeof(int));
+    
+    /* push dummy return address */
+    *esp -= sizeof(void (*) ());
+    memset (*esp, 0, sizeof(void (*) ()));
 }
 
 /* Waits for thread TID to die and returns its exit status.  If
@@ -88,6 +156,8 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+  int infloop = 1e10;
+  while (infloop--);
   return -1;
 }
 
@@ -208,6 +278,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 bool
 load (const char *file_name, void (**eip) (void), void **esp) 
 {
+  printf(">>> load\n");
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
