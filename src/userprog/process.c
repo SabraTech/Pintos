@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <list.h>
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
@@ -17,6 +18,13 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+
+struct start_process_args
+  {
+    char *file_name_;
+    struct thread *parent;
+    struct semaphore *loading_sema;
+  };
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -41,7 +49,15 @@ process_execute (const char *file_name)
   /* Create a new thread to execute FILE_NAME. */
   char *save_ptr;
   file_name = strtok_r (file_name, " ", &save_ptr);
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  
+  struct semaphore loading_sema;
+  sema_init (&loading_sema, 0);
+  struct start_process_args args;
+  args.file_name_ = fn_copy;
+  args.parent = thread_current ();
+  args.loading_sema = &loading_sema;
+  tid = thread_create (file_name, PRI_DEFAULT, start_process, &args);
+  sema_down (&loading_sema);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
   return tid;
@@ -50,13 +66,25 @@ process_execute (const char *file_name)
 /* A thread function that loads a user process and starts it
    running. */
 static void
-start_process (void *file_name_)
+start_process (void *args_)
 {
+  struct start_process_args *args = args_;
+  char *file_name_ = args->file_name_;
   char *file_name, *token;
   struct intr_frame if_;
   bool success;
   int argc = 0;
-
+  
+  /* initialize child_elem */
+  struct thread *cur = thread_current ();
+  struct child_thread_elem *child_elem = malloc (sizeof(struct child_thread_elem));
+  child_elem->exit_status = -1;
+  sema_init (&child_elem->wait_sema, 0);
+  child_elem->tid = cur->tid;
+  child_elem->t = cur;
+  cur->child_elem = child_elem;
+  list_push_back (&args->parent->children_list, &child_elem->elem);
+  
   /* copy full file_name_ then tokenize it to get file_name and count argc */
   char *fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
@@ -83,10 +111,17 @@ start_process (void *file_name_)
   /* If load failed, quit. */
   palloc_free_page (fn_copy);
   if (!success)
-    thread_exit ();
-
+    {
+      child_elem->loading_status = -1;
+      sema_up (args->loading_sema);
+      thread_exit ();
+    }
+  
   /* push main function arguments to stack */
   main_stack_setup ((char*) file_name_, argc, &if_.esp);
+
+  child_elem->loading_status = 0;
+  sema_up (args->loading_sema);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -158,11 +193,22 @@ main_stack_setup (char *cmd, int argc, void **esp)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED)
+process_wait (tid_t child_tid)
 {
-  int infloop = 1e9;
-  while (infloop--);
-  return -1;
+  struct child_thread_elem *child = thread_get_child (child_tid);
+  /* this tid is not a direct child of current process 
+     or it has waited for it before */
+  if (child == NULL)
+    return -1;
+  
+  /* if the child process still running block for it */
+  if (child->t != NULL && child->t->status != THREAD_DYING) // try to remove != NULL
+    sema_down (&child->wait_sema);
+    
+  int status = child->exit_status;
+  remove_child (child_tid);
+
+  return status;
 }
 
 /* Free the current process's resources. */

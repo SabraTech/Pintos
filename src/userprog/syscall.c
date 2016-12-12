@@ -92,6 +92,8 @@ void
 exit (int status)
 {
   struct thread *cur = thread_current();
+  if (cur->child_elem != NULL)
+    cur->child_elem->exit_status = status;
   printf ("%s: exit(%d)\n", cur->name, status);
   thread_exit();
 }
@@ -99,26 +101,44 @@ exit (int status)
 pid_t
 exec (const char *file)
 {
-
+  file = user_to_kernel_vaddr (file);
+  char *fn_copy = palloc_get_page (0);
+  if (fn_copy == NULL)
+    return TID_ERROR;
+  strlcpy (fn_copy, file, PGSIZE);
+  
+  tid_t child_tid = process_execute (fn_copy);
+  if (child_tid == TID_ERROR)
+    return TID_ERROR;
+  
+  struct child_thread_elem *child = thread_get_child (child_tid);
+  if (child->loading_status == -1)
+    return -1;
+  
+  return child_tid;
 }
 
-int wait (pid_t pid)
+int 
+wait (pid_t pid)
 {
-
-}
-bool create (const char *file, unsigned initial_size)
-{
-
+  return process_wait (pid);
 }
 
-bool remove (const char *file)
+bool 
+create (const char *file, unsigned initial_size)
 {
+  file = user_to_kernel_vaddr (file);
+}
 
+bool
+remove (const char *file)
+{
+  file = user_to_kernel_vaddr (file);
 }
 
 int open (const char *file)
 {
-
+  file = user_to_kernel_vaddr (file);
 }
 
 int filesize (int fd)
@@ -130,6 +150,7 @@ int filesize (int fd)
 int
 read (int fd, void *buffer, unsigned length)
 {
+  buffer = user_to_kernel_vaddr (buffer);
   return length;
 }
 

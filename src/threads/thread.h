@@ -26,6 +26,16 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+struct child_thread_elem
+  {
+    int exit_status;
+    int loading_status;
+    struct semaphore wait_sema;
+    tid_t tid;
+    struct thread *t;
+    struct list_elem elem;
+  };
+
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -142,6 +152,13 @@ struct thread
                                             initialize with value of zero. */
     fixedpoint recent_cpu;               /* recent_cpu to measure how much CPU
                                           time each process has received "recently." */
+    
+    /* used by syscalls */
+    struct thread *parent;
+    struct list children_list;
+    struct child_thread_elem *child_elem; /* A pointer will be allocated by exec
+                                             syscall to be able to be accessed by
+                                             parent if this thread is destroyed */
   };
 
 bool priority_comp (const struct list_elem *a, const struct list_elem *b, void *aux);
@@ -178,6 +195,7 @@ int thread_get_priority (void);
 void thread_set_priority (int);
 
 bool is_idle_thread (struct thread *t);
+struct child_thread_elem *thread_get_child (tid_t tid);
 
 int thread_get_nice (void);
 void thread_set_nice (int);
