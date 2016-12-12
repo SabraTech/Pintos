@@ -1,6 +1,7 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
+#include <list.h>
 #include "threads/vaddr.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
@@ -23,14 +24,26 @@ static void seek (int fd, unsigned position);
 static unsigned tell (int fd);
 static void close (int fd);
 
-static int add_to_file_table (struct file *f);
 static bool remove_from_file_table (int fd);
 static struct file * get_file_by_fd (int fd);
+static int add_to_file_table (struct file *f);
+
+static struct lock filesys_lock;
+static struct list file_table;
+
+struct file_table_entry
+  {
+    int fd;
+    struct file *f;
+    struct list_elem elem;
+  };
 
 void
 syscall_init (void)
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  lock_init (&filesys_lock);
+  list_init (&file_table);
 }
 
 #define SYSNUM(s) *(int*) user_to_kernel_vaddr (s)
@@ -38,18 +51,9 @@ syscall_init (void)
 #define ARG1(s) *(int*) user_to_kernel_vaddr (s + 8)
 #define ARG2(s) *(int*) user_to_kernel_vaddr (s + 12)
 
-static bool is_init = false;
-static struct lock filesys_lock;
-
 static void
 syscall_handler (struct intr_frame *f)
 {
-  if (!is_init)
-    {
-      lock_init (&filesys_lock);
-      // initialize table here
-      is_init = true;
-    }
   switch (SYSNUM(f->esp)) {
     case SYS_HALT:
       halt ();
@@ -161,8 +165,13 @@ int open (const char *file_name)
 {
   file_name = user_to_kernel_vaddr (file_name);
   lock_acquire (&filesys_lock);
-  struct file *file = filesys_open (file_name);
-  int fd;// = add_to_file_table (file);
+  struct file *f = filesys_open (file_name);
+  if (f == NULL)
+    {
+      lock_release (&filesys_lock);
+      return -1;
+    }
+  int fd = add_to_file_table (f);
   lock_release (&filesys_lock);
   return fd;
 }
@@ -296,12 +305,7 @@ user_to_kernel_vaddr (void *uaddr)
 
 /* functions to access file_table */
 
-/* adds new entry (file object) to file_table and returns its file descriptor */
-// static int 
-// add_to_file_table (struct file *f)
-// {
-//   return 10;
-// }
+
 
 /* return file object crossponding to given file descriptor, 
    if not found returns NULL 
@@ -309,6 +313,15 @@ user_to_kernel_vaddr (void *uaddr)
 static struct file *
 get_file_by_fd (int fd)
 {
+  struct list_elem *e = list_begin (&file_table);
+  struct file_table_entry *entry;
+  for(;e != list_end (&file_table); e = list_next (e))
+    {
+      entry = list_entry (e, struct file_table_entry, elem);
+      if(entry->fd == fd)
+        return entry->f;
+    }
+  
   return NULL;
 }
 
@@ -317,5 +330,29 @@ get_file_by_fd (int fd)
 static bool
 remove_from_file_table (int fd)
 {
+  struct list_elem *e = list_begin (&file_table);
+  struct file_table_entry *entry;
+  for(;e != list_end (&file_table); e = list_next (e))
+    {
+      entry = list_entry (e, struct file_table_entry, elem);
+      if(entry->fd == fd)
+        {
+          list_remove (&entry->elem);
+          free (entry);
+          return true;
+        }
+    }
   return false;
+}
+
+/* adds new entry (file object) to file_table and returns its file descriptor */
+static int 
+add_to_file_table (struct file *f)
+{
+  static int next_fd = 5;
+  struct file_table_entry *entry = malloc (sizeof (struct file_table_entry));
+  entry->fd = next_fd++;
+  entry->f = f;
+  list_push_back (&file_table, &entry->elem);
+  return entry->fd;
 }
