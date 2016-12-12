@@ -155,7 +155,9 @@ struct thread
     
     /* used by syscalls */
     struct thread *parent;
-    struct list children_list;
+    struct list children_list;            /* If this thread is a user process thread
+                                             this list contains all child process
+                                             created using exec syscall */
     struct child_thread_elem *child_elem; /* A pointer will be allocated by exec
                                              syscall to be able to be accessed by
                                              parent if this thread is destroyed */
