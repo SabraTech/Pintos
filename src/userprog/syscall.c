@@ -7,11 +7,12 @@
 #include "threads/thread.h"
 #include "devices/shutdown.h"
 
-#define MAX_OPEN_FILES 10
+#define MAX_OPEN_FILES 256
 
 static void syscall_handler (struct intr_frame *);
 
 static void *user_to_kernel_vaddr (void *uaddr);
+static int allocate_fd (void);
 
 bool remove_from_file_table (int fd);
 
@@ -32,6 +33,7 @@ void close (int fd);
 
 
 static struct lock filesys_lock;
+static struct lock fd_lock;
 
 
 void
@@ -39,6 +41,7 @@ syscall_init (void)
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
   lock_init (&filesys_lock);
+  lock_init (&fd_lock);
 }
 
 #define SYSNUM(s) *(int*) user_to_kernel_vaddr (s)
@@ -331,14 +334,13 @@ get_file_by_fd (int fd)
 int
 add_to_file_table (struct file *f)
 {
-  static int next_fd = 5;
   struct list *file_table = &thread_current ()->file_table;
   if(list_size(file_table) >= MAX_OPEN_FILES)
     {
       return -1;
     }
   struct file_table_entry *entry = malloc (sizeof (struct file_table_entry));
-  entry->fd = next_fd++;
+  entry->fd = allocate_fd ();
   entry->f = f;
   list_push_back (file_table, &entry->elem);
   return entry->fd;
@@ -347,14 +349,17 @@ add_to_file_table (struct file *f)
 void
 close_all_files(void)
 {
+  lock_acquire (&filesys_lock);
   struct list *file_table = &thread_current ()->file_table;
   struct list_elem *e = list_begin (file_table);
   struct file_table_entry *entry;
   for(;e != list_end (file_table); e = list_begin (file_table))
     {
       entry = list_entry (e, struct file_table_entry, elem);
-      close (entry->fd);
+      file_close (entry->f);
+      remove_from_file_table(entry->fd);
     }
+  lock_release (&filesys_lock);
 }
 
 /* remove the file object and fd from file_table
@@ -376,4 +381,15 @@ remove_from_file_table (int fd)
         }
     }
   return false;
+}
+
+static int
+allocate_fd (void)
+{
+  static int next_fd = 5;
+  int fd;
+  lock_acquire (&fd_lock);
+  fd = next_fd++;
+  lock_release (&fd_lock);
+  return fd;
 }
