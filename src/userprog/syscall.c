@@ -7,43 +7,38 @@
 #include "threads/thread.h"
 #include "devices/shutdown.h"
 
+#define MAX_OPEN_FILES 10
+
 static void syscall_handler (struct intr_frame *);
 
 static void *user_to_kernel_vaddr (void *uaddr);
-static void halt (void) NO_RETURN;
-static void exit (int status) NO_RETURN;
-static pid_t exec (const char *file);
-static int wait (pid_t);
-static bool create (const char *file, unsigned initial_size);
-static bool remove (const char *file);
-static int open (const char *file);
-static int filesize (int fd);
-static int read (int fd, void *buffer, unsigned length);
-static int write (int fd, const void *buffer, unsigned length);
-static void seek (int fd, unsigned position);
-static unsigned tell (int fd);
-static void close (int fd);
 
-static bool remove_from_file_table (int fd);
-static struct file * get_file_by_fd (int fd);
-static int add_to_file_table (struct file *f);
+bool remove_from_file_table (int fd);
+
+
+void halt (void);
+void exit (int status);
+pid_t exec (const char *file);
+int wait (pid_t);
+bool create (const char *file, unsigned initial_size);
+bool remove (const char *file);
+int open (const char *file);
+int filesize (int fd);
+int read (int fd, void *buffer, unsigned length);
+int write (int fd, const void *buffer, unsigned length);
+void seek (int fd, unsigned position);
+unsigned tell (int fd);
+void close (int fd);
+
 
 static struct lock filesys_lock;
-static struct list file_table;
 
-struct file_table_entry
-  {
-    int fd;
-    struct file *f;
-    struct list_elem elem;
-  };
 
 void
 syscall_init (void)
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
   lock_init (&filesys_lock);
-  list_init (&file_table);
 }
 
 #define SYSNUM(s) *(int*) user_to_kernel_vaddr (s)
@@ -123,25 +118,25 @@ exec (const char *file)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file, PGSIZE);
-  
+
   tid_t child_tid = process_execute (fn_copy);
   if (child_tid == TID_ERROR)
     return TID_ERROR;
-  
+
   struct child_thread_elem *child = thread_get_child (child_tid);
   if (child->loading_status == -1)
     return -1;
-  
+
   return child_tid;
 }
 
-int 
+int
 wait (pid_t pid)
 {
   return process_wait (pid);
 }
 
-bool 
+bool
 create (const char *file, unsigned initial_size)
 {
   file = user_to_kernel_vaddr (file);
@@ -172,6 +167,12 @@ int open (const char *file_name)
       return -1;
     }
   int fd = add_to_file_table (f);
+  /* The wanted file to open is larger than the allowed files to be opened
+     so will be closed again and return -1 as error. */
+  if(fd == -1)
+    {
+      file_close (f);
+    }
   lock_release (&filesys_lock);
   return fd;
 }
@@ -205,7 +206,7 @@ read (int fd, void *buffer, unsigned length)
       	}
       return length;
     }
-  
+
   /* read from file */
   lock_acquire (&filesys_lock);
   struct file *f = get_file_by_fd (fd);
@@ -307,32 +308,64 @@ user_to_kernel_vaddr (void *uaddr)
 
 
 
-/* return file object crossponding to given file descriptor, 
-   if not found returns NULL 
+/* return file object crossponding to given file descriptor,
+   if not found returns NULL
    Note: fd = 0, 1 are reserved for stdin, stdout */
-static struct file *
+struct file *
 get_file_by_fd (int fd)
 {
-  struct list_elem *e = list_begin (&file_table);
+  struct list *file_table = &thread_current ()->file_table;
+  struct list_elem *e = list_begin (file_table);
   struct file_table_entry *entry;
-  for(;e != list_end (&file_table); e = list_next (e))
+  for(;e != list_end (file_table); e = list_next (e))
     {
       entry = list_entry (e, struct file_table_entry, elem);
       if(entry->fd == fd)
         return entry->f;
     }
-  
+
   return NULL;
+}
+
+/* adds new entry (file object) to file_table and returns its file descriptor */
+int
+add_to_file_table (struct file *f)
+{
+  static int next_fd = 5;
+  struct list *file_table = &thread_current ()->file_table;
+  if(list_size(file_table) >= MAX_OPEN_FILES)
+    {
+      return -1;
+    }
+  struct file_table_entry *entry = malloc (sizeof (struct file_table_entry));
+  entry->fd = next_fd++;
+  entry->f = f;
+  list_push_back (file_table, &entry->elem);
+  return entry->fd;
+}
+
+void
+close_all_files(void)
+{
+  struct list *file_table = &thread_current ()->file_table;
+  struct list_elem *e = list_begin (file_table);
+  struct file_table_entry *entry;
+  for(;e != list_end (file_table); e = list_begin (file_table))
+    {
+      entry = list_entry (e, struct file_table_entry, elem);
+      close (entry->fd);
+    }
 }
 
 /* remove the file object and fd from file_table
    returns true if successfully removed and false otherwise */
-static bool
+bool
 remove_from_file_table (int fd)
 {
-  struct list_elem *e = list_begin (&file_table);
+  struct list *file_table = &thread_current ()->file_table;
+  struct list_elem *e = list_begin (file_table);
   struct file_table_entry *entry;
-  for(;e != list_end (&file_table); e = list_next (e))
+  for(;e != list_end (file_table); e = list_next (e))
     {
       entry = list_entry (e, struct file_table_entry, elem);
       if(entry->fd == fd)
@@ -343,16 +376,4 @@ remove_from_file_table (int fd)
         }
     }
   return false;
-}
-
-/* adds new entry (file object) to file_table and returns its file descriptor */
-static int 
-add_to_file_table (struct file *f)
-{
-  static int next_fd = 5;
-  struct file_table_entry *entry = malloc (sizeof (struct file_table_entry));
-  entry->fd = next_fd++;
-  entry->f = f;
-  list_push_back (&file_table, &entry->elem);
-  return entry->fd;
 }

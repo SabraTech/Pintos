@@ -8,6 +8,7 @@
 #include <list.h>
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
+#include "userprog/syscall.h"
 #include "userprog/tss.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
@@ -49,7 +50,7 @@ process_execute (const char *file_name)
   /* Create a new thread to execute FILE_NAME. */
   char *save_ptr;
   file_name = strtok_r (file_name, " ", &save_ptr);
-  
+
   struct semaphore loading_sema;
   sema_init (&loading_sema, 0);
   struct start_process_args args;
@@ -74,7 +75,7 @@ start_process (void *args_)
   struct intr_frame if_;
   bool success;
   int argc = 0;
-  
+
   /* initialize child_elem */
   struct thread *cur = thread_current ();
   struct child_thread_elem *child_elem = malloc (sizeof(struct child_thread_elem));
@@ -84,7 +85,7 @@ start_process (void *args_)
   child_elem->t = cur;
   cur->child_elem = child_elem;
   list_push_back (&args->parent->children_list, &child_elem->elem);
-  
+
   /* copy full file_name_ then tokenize it to get file_name and count argc */
   char *fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
@@ -116,7 +117,7 @@ start_process (void *args_)
       sema_up (args->loading_sema);
       thread_exit ();
     }
-  
+
   /* push main function arguments to stack */
   main_stack_setup ((char*) file_name_, argc, &if_.esp);
 
@@ -196,15 +197,15 @@ int
 process_wait (tid_t child_tid)
 {
   struct child_thread_elem *child = thread_get_child (child_tid);
-  /* this tid is not a direct child of current process 
+  /* this tid is not a direct child of current process
      or it has waited for it before */
   if (child == NULL)
     return -1;
-  
+
   /* if the child process still running block for it */
   if (child->t != NULL && child->t->status != THREAD_DYING) // try to remove != NULL
     sema_down (&child->wait_sema);
-    
+
   int status = child->exit_status;
   remove_child (child_tid);
 
@@ -218,6 +219,7 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
+  close_all_files ();
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
@@ -432,7 +434,11 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  if(file != NULL)
+    {
+      file_deny_write (file);
+      add_to_file_table (file);
+    }
   return success;
 }
 

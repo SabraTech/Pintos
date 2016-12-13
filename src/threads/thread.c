@@ -397,14 +397,14 @@ thread_set_priority (int new_priority)
   /* disable interrupts to avoid race conditions in priority */
   enum intr_level old_level;
   old_level = intr_disable ();
-  /* current_thread () hasn't been donated or 
+  /* current_thread () hasn't been donated or
      has been donated and its donated priority is higher than new_priority. */
   if (t->priority == t->base_priority || new_priority > t->priority)
     t->priority = new_priority;
 
   t->base_priority = new_priority;
   intr_set_level (old_level); // enable interrupts again
-  
+
   struct list_elem *max_elem = list_max(&ready_list, priority_comp, NULL);
   int max_priority =  list_entry (max_elem, struct thread, elem)->priority;
   if(t->priority < max_priority)
@@ -465,7 +465,7 @@ thread_mlfqs_calc_priority (struct thread *t) {
 }
 
 /* Update recent_cpu and load_avg of all threads
-   when the system tick counter is a multiple of a second 
+   when the system tick counter is a multiple of a second
    load_avg = (59/60)*load_avg + (1/60)*ready_threads */
 void
 thread_mlfqs_update (void) {
@@ -490,7 +490,7 @@ thread_mlfqs_update (void) {
     }
 }
 
-/* Calcutale the recent_cpu. 
+/* Calcutale the recent_cpu.
    recent_cpu = (2*load_avg)/(2*load_avg + 1) * recent_cpu + nice */
 static fixedpoint
 mlfqs_calculate_recent_cpu (fixedpoint recent_cpu, int nice)
@@ -572,7 +572,7 @@ is_thread (struct thread *t)
   return t != NULL && t->magic == THREAD_MAGIC;
 }
 
-bool 
+bool
 is_idle_thread (struct thread *t)
 {
   return t == idle_thread;
@@ -598,10 +598,12 @@ init_thread (struct thread *t, const char *name, int priority)
   list_init (&t->donar_list);
   t->requested_lock = NULL;
   t->donee = NULL;
-  
+
   list_init (&t->children_list);
-  
+
   list_push_back (&all_list, &t->allelem);
+
+  list_init(&t->file_table);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -723,7 +725,7 @@ allocate_tid (void)
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 /*
-  
+
 */
 struct child_thread_elem *
 thread_get_child (tid_t tid)
@@ -748,6 +750,6 @@ remove_child (tid_t tid)
     return false;
   list_remove (&child_elem->elem);
   free (child_elem);
-  
+
   return true;
 }

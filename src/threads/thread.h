@@ -36,6 +36,13 @@ struct child_thread_elem
     struct list_elem elem;
   };
 
+  struct file_table_entry
+    {
+      int fd;
+      struct file *f;
+      struct list_elem elem;
+    };
+
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -152,7 +159,7 @@ struct thread
                                             initialize with value of zero. */
     fixedpoint recent_cpu;               /* recent_cpu to measure how much CPU
                                           time each process has received "recently." */
-    
+
     /* used by syscalls */
     struct thread *parent;
     struct list children_list;            /* If this thread is a user process thread
@@ -161,6 +168,8 @@ struct thread
     struct child_thread_elem *child_elem; /* A pointer will be allocated by exec
                                              syscall to be able to be accessed by
                                              parent if this thread is destroyed */
+    struct list file_table;
+
   };
 
 bool priority_comp (const struct list_elem *a, const struct list_elem *b, void *aux);
