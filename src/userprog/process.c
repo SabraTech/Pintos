@@ -58,9 +58,14 @@ process_execute (const char *file_name)
   args.parent = thread_current ();
   args.loading_sema = &loading_sema;
   tid = thread_create (file_name, PRI_DEFAULT, start_process, &args);
-  sema_down (&loading_sema);
+  /* Dont wait on loading_sema unless you are sure child was created
+     successfully (i.e. tid != -1), or else you will wait forever
+     because only the child can wake you up. */
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
+  else
+    sema_down (&loading_sema);
+
   return tid;
 }
 
