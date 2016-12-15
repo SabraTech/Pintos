@@ -7,8 +7,8 @@
 #include "threads/thread.h"
 #include "devices/shutdown.h"
 
-#define MAX_OPEN_FILES 256
-
+#define MAX_OPEN_FILES 126
+static int total_open_files = 0;
 static void syscall_handler (struct intr_frame *);
 
 static void *user_to_kernel_vaddr (void *uaddr);
@@ -125,7 +125,6 @@ exec (const char *file)
   tid_t child_tid = process_execute (fn_copy);
   if (child_tid == TID_ERROR)
     return TID_ERROR;
-
   struct child_thread_elem *child = thread_get_child (child_tid);
   if (child->loading_status == -1)
     return -1;
@@ -335,7 +334,8 @@ int
 add_to_file_table (struct file *f)
 {
   struct list *file_table = &thread_current ()->file_table;
-  if(list_size(file_table) >= MAX_OPEN_FILES)
+  //if(list_size(file_table) >= MAX_OPEN_FILES)
+  if(total_open_files >= MAX_OPEN_FILES)
     {
       return -1;
     }
@@ -343,6 +343,7 @@ add_to_file_table (struct file *f)
   entry->fd = allocate_fd ();
   entry->f = f;
   list_push_back (file_table, &entry->elem);
+  total_open_files++;
   return entry->fd;
 }
 
@@ -377,6 +378,7 @@ remove_from_file_table (int fd)
         {
           list_remove (&entry->elem);
           free (entry);
+          total_open_files--;
           return true;
         }
     }

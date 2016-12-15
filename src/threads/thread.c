@@ -315,7 +315,9 @@ thread_exit (void)
 
 #ifdef USERPROG
   process_exit ();
-  sema_up (&(thread_current ()->child_elem->wait_sema));
+  /* check if parent is still alive */
+  if (thread_current ()->child_elem != NULL)
+    sema_up (&(thread_current ()->child_elem->wait_sema));
 #endif
 
   /* Remove thread from all threads list, set our status to dying,
