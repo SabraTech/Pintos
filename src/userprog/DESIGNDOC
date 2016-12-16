@@ -71,9 +71,23 @@ and if has no mapping in pdir, we call exit(-1) syscall.
 
 >> A3: Why does Pintos implement strtok_r() but not strtok()?
 
+Both functions are called the first time with the string to be tokenized, NULL
+is passed to subsequent calls, obviously some state (i.e. pointer to
+next token) needs to be saved between calls, strtok saves this state in a
+global variable, which will cause problems because Pintos is a multi-threaded
+program and interleaved calls made by different threads will give unexpected
+results due to race conditions occuring with the global state, strtok_r on
+the other hand, uses a pointer you pass to it in saving what it needs, which
+is unique for every thread, so results should be consistent.
+
 >> A4: In Pintos, the kernel separates commands into a executable name
 >> and arguments.  In Unix-like systems, the shell does this
 >> separation.  Identify at least two advantages of the Unix approach.
+
+  - A task like parsing a string should be done in a user program
+    not inside the kernel.
+  - Simplifies kernel code.
+  - Seems safer to do such task outside the kernel.
 
   SYSTEM CALLS
   ============
@@ -189,6 +203,30 @@ thread and then return the exit_status of the child.
 >> paragraphs, describe the strategy or strategies you adopted for
 >> managing these issues.  Give an example.
 
+Any user program memory access is done through the following function:
+        /* checks that uaddr is both a valid user address and mapped
+           other wise it kills the violating process */
+        void *user_to_kernel_vaddr (void *uaddr);
+
+    Arguments are read from stack using the following macro defines:
+        #define SYSNUM(s) *(int*) user_to_kernel_vaddr (s)
+        #define ARG0(s) *(int*) user_to_kernel_vaddr (s + 4)
+        #define ARG1(s) *(int*) user_to_kernel_vaddr (s + 8)
+        #define ARG2(s) *(int*) user_to_kernel_vaddr (s + 12)
+
+    Before any obtained pointer is used, it is also validated, this is done
+    before anything else (i.e. before allocating any resources) to avoid any
+    resource leak.
+
+Example:
+--------
+
+- A program that puts address 0xC0000000 on the stack for example will be
+  killed by the kernel before it can do anything.
+
+- A program that tries to derefrence 0xC0000000 will page_fault and
+  will also be killed by the kernel.
+
 ---- SYNCHRONIZATION ----
 
 >> B7: The "exec" system call returns -1 if loading the new executable
@@ -196,10 +234,13 @@ thread and then return the exit_status of the child.
 >> loading.  How does your code ensure this?  How is the load
 >> success/failure status passed back to the thread that calls "exec"?
 
-Our design is the therad has struct child_thread_elem which each child as
-it's own loading_status so the code ensure that the child has been loaded or
-not and as well the parent hold the the list of all struct childs has so it
-will be passed back to the parent thread.
+When a process spawns a new child, it passes to it among other argument
+a semaphore 'loading_sema' and waits on it. The child creates a child_elem for
+itself with a loading_status attribute and puts itself in its parent's
+child_list. If the child fails to load for any reason it sets its
+loading_status to -1 and ups the loading_sema, otherwise it just ups
+loading_sema. As soon as the parent wakes up from its wait on the
+loading_sema, it can examine its newly spawned child's loading status. 
 
 >> B8: Consider parent process P with child process C.  How do you
 >> ensure proper synchronization and avoid race conditions when P
