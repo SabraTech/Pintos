@@ -1,0 +1,244 @@
+               +--------------------------+
+               |         CS 333           |
+               | PROJECT 2: USER PROGRAMS |
+               |      DESIGN DOCUMENT     |
+               +--------------------------+
+
+---- GROUP ----
+
+>> Fill in the names and email addresses of your group members.
+
+Hazem Samir <hazem.s.ashmawy@gmail.com>
+Mohamed Sabra <mohamed2006fs@gamil.com>
+Aly Thabet <alythabet90@gmail.com>
+
+---- PRELIMINARIES ----
+
+>> If you have any preliminary comments on your submission, notes for the
+>> TAs, or extra credit, please give them here.
+
+>> Please cite any offline or online sources you consulted while
+>> preparing your submission, other than the Pintos documentation, course
+>> text, lecture notes, and course staff.
+
+ARGUMENT PASSING
+================
+
+---- DATA STRUCTURES ----
+
+>> A1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+None.
+
+---- ALGORITHMS ----
+
+>> A2: Briefly describe how you implemented argument parsing.  How do
+>> you arrange for the elements of argv[] to be in the right order?
+>> How do you avoid overflowing the stack page?
+
+Description of the implementation:
+----------------------------------
+
+Process_execute provides file_name, which is the command and the arguments.
+First, we separate the first token in the string which the command and use it
+as the thread's name to be created. Then, we pass the arguments string to
+start_process() we begin to initialize child_elem in the created thread and by
+calling strtok_r() we count the number of arguments, after that the call of
+load() and finally we call our main_stack_setup() function, then get the
+address and length of each argument and push to the stack while
+decrementing esp and store the address of esp for every argument into argv[]
+and at last put the index of the last argument with null termination, then we
+add padding so that the memory is multiple of 4, after that we iterate on the
+argv[] backward to push pointer to arguments strings to stack starting with
+the null termination after it then we push argv pointer and the argc to the
+stack and finally push dummy return address.
+
+How do you arrange for the elemnts of argv[] to be in the right order:
+----------------------------------------------------------------------
+we put the order of the string as it is and then when pushing to stack we
+iterate backward on the elemnts of argv[].
+
+How do you avoid overflowing the stack page:
+--------------------------------------------
+
+checking esp’s validity every time before use in the syscall_handler() function
+and if has no mapping in pdir, we call exit(-1) syscall.
+
+
+---- RATIONALE ----
+
+>> A3: Why does Pintos implement strtok_r() but not strtok()?
+
+>> A4: In Pintos, the kernel separates commands into a executable name
+>> and arguments.  In Unix-like systems, the shell does this
+>> separation.  Identify at least two advantages of the Unix approach.
+
+  SYSTEM CALLS
+  ============
+
+---- DATA STRUCTURES ----
+
+>> B1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+Added structs in file thread.h:
+
+/*
+   Represents the thread as a child process, stores everything
+   the parent needs to know, persists even after the child process
+   exits, only the parent can destroy it.
+ */
+struct child_thread_elem
+  {
+    int exit_status;                 /* returned by wait (). */
+    int loading_status;              /* to inform parent if the
+                                        load was successful. */
+    struct semaphore wait_sema;      /* used by the parent to
+                                        block on a child when
+                                        wait () is called on it. */
+    tid_t tid;
+    struct thread *t;                /* pointer to the thread, can be
+                                        NULL if the process exits. */
+    struct list_elem elem;           /* used by parent to put its
+                                        children in a list. */
+  };
+
+ /*
+     Represents an open file and associates it with a file descriptor.
+ */
+struct file_table_entry
+ {
+   int fd;                       /* file descriptor. */
+   struct file *f;               /* pointer to open file. */
+   struct list_elem elem;        /* used by the process
+                                    to store its open files. */
+ };
+
+Added variables in thread struct in file thread.h:
+
+	struct list children_list;
+  - If this thread is a user process thread
+    this list contains all child process
+    created using exec syscall.
+
+  struct child_thread_elem *child_elem;
+  - A pointer will be allocated by exec
+    syscall to be able to be accessed by
+    parent if this thread is destroyed.
+
+  struct list file_table;
+  - Represents an open file and
+    associates it with a file descriptor.
+
+
+>> B2: Describe how file descriptors are associated with open files.
+>> Are file descriptors unique within the entire OS or just within a
+>> single process?
+
+When a file is opened by calling the open syscall it added to
+current process's list of open files and assigned a unique file descriptor.
+So, file descriptors are unique within a single process only.
+
+---- ALGORITHMS ----
+
+>> B3: Describe your code for reading and writing user data from the
+>> kernel.
+
+Reading and writing done using read and write syscalls, both take arguments of
+file descriptor, pointer to a buffer and a size of buffer.First, all the
+arguments are checked and if something fails the exit syscall is called with
+status of -1. The code for both read/write check the file descriptor
+to know if stdin or stdout to read or wite in the console, if the file is not
+console then accquire filesys_lock and try to get the file by it's file
+descriptor if not found relase the lock and return error if the file found then
+begin read/write in it and release the lock and return the size that had been
+read/write in the file.
+
+
+>> B4: Suppose a system call causes a full page (4,096 bytes) of data
+>> to be copied from user space into the kernel.  What is the least
+>> and the greatest possible number of inspections of the page table
+>> (e.g. calls to pagedir_get_page()) that might result?  What about
+>> for a system call that only copies 2 bytes of data?  Is there room
+>> for improvement in these numbers, and how much?
+
+>> B5: Briefly describe your implementation of the "wait" system call
+>> and how it interacts with process termination.
+
+We implement the wait syscall to call process_wait directly. In process_wait we
+get the child process by iterate the list of childs in the current thread if
+the tid_t of the that child not found then return error, if the child is found
+and still running then block it by calling sema_down to this child. if none of
+this happens then remove the child from the list of childs for the current
+thread and then return the exit_status of the child.
+
+>> B6: Any access to user program memory at a user-specified address
+>> can fail due to a bad pointer value.  Such accesses must cause the
+>> process to be terminated.  System calls are fraught with such
+>> accesses, e.g. a "write" system call requires reading the system
+>> call number from the user stack, then each of the call's three
+>> arguments, then an arbitrary amount of user memory, and any of
+>> these can fail at any point.  This poses a design and
+>> error-handling problem: how do you best avoid obscuring the primary
+>> function of code in a morass of error-handling?  Furthermore, when
+>> an error is detected, how do you ensure that all temporarily
+>> allocated resources (locks, buffers, etc.) are freed?  In a few
+>> paragraphs, describe the strategy or strategies you adopted for
+>> managing these issues.  Give an example.
+
+---- SYNCHRONIZATION ----
+
+>> B7: The "exec" system call returns -1 if loading the new executable
+>> fails, so it cannot return before the new executable has completed
+>> loading.  How does your code ensure this?  How is the load
+>> success/failure status passed back to the thread that calls "exec"?
+
+Our design is the therad has struct child_thread_elem which each child as
+it's own loading_status so the code ensure that the child has been loaded or
+not and as well the parent hold the the list of all struct childs has so it
+will be passed back to the parent thread.
+
+>> B8: Consider parent process P with child process C.  How do you
+>> ensure proper synchronization and avoid race conditions when P
+>> calls wait(C) before C exits?  After C exits?  How do you ensure
+>> that all resources are freed in each case?  How about when P
+>> terminates without waiting, before C exits?  After C exits?  Are
+>> there any special cases?
+
+---- RATIONALE ----
+
+>> B9: Why did you choose to implement access to user memory from the
+>> kernel in the way that you did?
+
+>> B10: What advantages or disadvantages can you see to your design
+>> for file descriptors?
+
+>> B11: The default tid_t to pid_t mapping is the identity mapping.
+>> If you changed it, what advantages are there to your approach?
+
+SURVEY QUESTIONS
+================
+
+Answering these questions is optional, but it will help us improve the
+course in future quarters.  Feel free to tell us anything you
+want--these questions are just to spur your thoughts.  You may also
+choose to respond anonymously in the course evaluations at the end of
+the quarter.
+
+>> In your opinion, was this assignment, or any one of the three problems
+>> in it, too easy or too hard?  Did it take too long or too little time?
+
+>> Did you find that working on a particular part of the assignment gave
+>> you greater insight into some aspect of OS design?
+
+>> Is there some particular fact or hint we should give students in
+>> future quarters to help them solve the problems?  Conversely, did you
+>> find any of our guidance to be misleading?
+
+>> Do you have any suggestions for the TAs to more effectively assist
+>> students, either for future quarters or the remaining projects?
+
+>> Any other comments?
