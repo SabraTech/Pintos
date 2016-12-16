@@ -44,7 +44,7 @@ process_execute (const char *file_name)
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
-  fn_copy = palloc_get_page (0);
+  fn_copy = malloc (sizeof (char) * (strlen (file_name) + 1));
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
@@ -59,19 +59,15 @@ process_execute (const char *file_name)
   args.file_name_ = fn_copy;
   args.parent = thread_current ();
   args.loading_sema = &loading_sema;
-  printf("thread %d waiting for its child to load, sem %d\n", thread_current ()->tid, loading_sema.value);
   tid = thread_create (file_name, PRI_DEFAULT, start_process, &args);
-  printf(" %d child is %d\n", thread_current ()->tid, tid);
  /* Dont wait on loading_sema unless you are sure child was created
      successfully (i.e. tid != -1), or else you will wait forever
      because only the child can wake you up. */
-  if (tid == TID_ERROR){
-    palloc_free_page (fn_copy);
-    printf("FAILED TO LOAD:%d child is %d\n", thread_current ()->tid, tid);
-  }else{
+  if (tid == TID_ERROR)
+    free (fn_copy);
+  else
     sema_down (&loading_sema);
-    printf(" %d woke up\n", thread_current ()->tid);
-  }
+
   return tid;
 }
 
@@ -81,13 +77,11 @@ static void
 start_process (void *args_)
 {
   struct start_process_args *args = args_;
-  printf("starting  %d's child %d\n", args->parent->tid, thread_current()->tid);
   char *file_name_ = args->file_name_;
   char *file_name, *token;
   struct intr_frame if_;
-  bool success = false;
+  bool success;
   int argc = 0;
-  printf("1\n");
   /* initialize child_elem */
   struct thread *cur = thread_current ();
   struct child_thread_elem *child_elem = malloc (sizeof(struct child_thread_elem));
@@ -97,19 +91,14 @@ start_process (void *args_)
   child_elem->t = cur;
   cur->child_elem = child_elem;
   list_push_back (&args->parent->children_list, &child_elem->elem);
-  printf("2\n");
 
   /* copy full file_name_ then tokenize it to get file_name and count argc */
-  char *fn_copy = palloc_get_page (0);
-  printf("3\n");
+  char *fn_copy = malloc (sizeof (char) * (strlen (file_name_) + 1));
   if (fn_copy == NULL)
     goto failed;
   strlcpy (fn_copy, (char*) file_name_, PGSIZE);
-  printf("4\n");
   char *save_ptr;
   file_name = strtok_r (fn_copy, " ", &save_ptr);
-  printf("5\n");
-  printf("starting  %d's child\n", args->parent->tid);
 
   /* count number of arguments */
   token = file_name;
@@ -118,7 +107,6 @@ start_process (void *args_)
      ++argc;
      token = strtok_r (NULL, " ", &save_ptr);
    }
-   printf("starting  %d's child\n", args->parent->tid);
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -127,31 +115,23 @@ start_process (void *args_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
 
-  failed:
   /* If load failed, quit. */
-  palloc_free_page (fn_copy);
+  free (fn_copy);
 
   if (!success)
     {
-      /* was allocated in process execute and passed to here in args. */
-      palloc_free_page (file_name_);
+      failed:
       child_elem->loading_status = -1;
       sema_up (args->loading_sema);
-      printf("failed to load %d's child %d, sema %d \n", args->parent->tid, cur->tid, args->loading_sema->value);
 
       thread_exit ();
     }
-    printf("starting  %d's child\n", args->parent->tid);
 
   /* push main function arguments to stack */
   main_stack_setup ((char*) file_name_, argc, &if_.esp);
-
-  /* was allocated in process execute and passed to here in args. */
-  palloc_free_page (file_name_);
-
+  free (file_name_);
   child_elem->loading_status = 0;
   sema_up (args->loading_sema);
-  printf("load successful, wake up parent %d, sema %d\n", args->parent->tid, args->loading_sema->value);
 
 
   /* Start the user process by simulating a return from an
@@ -463,9 +443,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   success = true;
 
-  done:
+ done:
   /* We arrive here whether the load is successful or not. */
-  if(success && file != NULL)
+  if(file != NULL)
     {
       file_deny_write (file);
       add_to_file_table (file);
@@ -624,19 +604,13 @@ install_page (void *upage, void *kpage, bool writable)
 static void
 deallocate_children (void)
 {
-  printf("here: %d\n", thread_current ()->tid);
   struct thread *t = thread_current ();
   struct list *childern = &t->children_list;
   struct list_elem *e = list_begin (childern);
   struct child_thread_elem *entry;
-  int i = 0;
   for(;e != list_end (childern); e = list_begin (childern))
     {
-
-      printf("-------------------%d ", i);
-      printf("\n");
-      i++;
-      entry = list_entry (e, struct child_thread_elem, elem);
+    entry = list_entry (e, struct child_thread_elem, elem);
       list_remove (&entry->elem);
       free (entry);
     }

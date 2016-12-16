@@ -26,22 +26,31 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+/*
+   Represents the thread as a child process, stores everything
+   the parent needs to know, persists even after the child process
+   exits, only the parent can destroy it.
+ */
 struct child_thread_elem
   {
-    int exit_status;
-    int loading_status;
-    struct semaphore wait_sema;
+    int exit_status;                 /* returned by wait (). */
+    int loading_status;              /* to inform parent if the load was successful. */
+    struct semaphore wait_sema;      /* used by the parent to block on a child when
+                                        wait () is called on it. */
     tid_t tid;
-    struct thread *t;
-    struct list_elem elem;
+    struct thread *t;                /* pointer to the thread, can be NULL if the process exits. */
+    struct list_elem elem;           /* used by parent to put its children in a list. */
   };
 
-  struct file_table_entry
-    {
-      int fd;
-      struct file *f;
-      struct list_elem elem;
-    };
+ /*
+     Represents an open file and associates it with a file descriptor.
+ */
+struct file_table_entry
+ {
+   int fd;                       /* file descriptor. */
+   struct file *f;               /* pointer to open file. */
+   struct list_elem elem;        /* used by the process to store its open files. */
+ };
 
 /* A kernel thread or user process.
 
@@ -161,7 +170,6 @@ struct thread
                                           time each process has received "recently." */
 
     /* used by syscalls */
-    struct thread *parent;
     struct list children_list;            /* If this thread is a user process thread
                                              this list contains all child process
                                              created using exec syscall */

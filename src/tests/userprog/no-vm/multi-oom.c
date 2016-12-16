@@ -112,12 +112,10 @@ main (int argc, char *argv[])
   if (is_at_root)
     msg ("begin");
 
-  printf("my depth %d\n", n);
   /* If -k is passed, crash this process. */
   if (argc > 2 && !strcmp(argv[2], "-k"))
     {
       consume_some_resources_and_die (n);
-
       NOT_REACHED ();
     }
 
@@ -126,7 +124,6 @@ main (int argc, char *argv[])
 
   for (i = 0; i < howmany; i++)
     {
-      printf("howmay %d\n", howmany);
       pid_t child_pid;
 
       /* Spawn a child that will be abnormally terminated.

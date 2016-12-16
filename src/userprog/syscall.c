@@ -117,12 +117,7 @@ pid_t
 exec (const char *file)
 {
   file = user_to_kernel_vaddr (file);
-  char *fn_copy = palloc_get_page (0);
-  if (fn_copy == NULL)
-    return TID_ERROR;
-  strlcpy (fn_copy, file, PGSIZE);
-
-  tid_t child_tid = process_execute (fn_copy);
+  tid_t child_tid = process_execute (file);
   if (child_tid == TID_ERROR)
     return TID_ERROR;
   struct child_thread_elem *child = thread_get_child (child_tid);
@@ -334,7 +329,6 @@ int
 add_to_file_table (struct file *f)
 {
   struct list *file_table = &thread_current ()->file_table;
-  //if(list_size(file_table) >= MAX_OPEN_FILES)
   if(total_open_files >= MAX_OPEN_FILES)
     {
       return -1;
