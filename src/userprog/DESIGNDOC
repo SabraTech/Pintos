@@ -285,6 +285,10 @@ Added structs in file process.c:
 >> B9: Why did you choose to implement access to user memory from the
 >> kernel in the way that you did?
 
+- We chose the first approach described in project documents, verifying the 
+  validity of a user-provided pointer, then dereferencing it. We chose it 
+  because it is straight forward and simpler than the other approach.
+
 >> B10: What advantages or disadvantages can you see to your design
 >> for file descriptors?
 
