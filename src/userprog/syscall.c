@@ -198,9 +198,7 @@ read (int fd, void *buffer, unsigned length)
       int i;
       char *cbuffer = buffer;
       for (i = 0; i < length; i++)
-      	{
-      	  cbuffer[i] = input_getc();
-      	}
+    	  cbuffer[i] = input_getc();
       return length;
     }
 
@@ -210,7 +208,7 @@ read (int fd, void *buffer, unsigned length)
   if (f == NULL)
     {
       lock_release (&filesys_lock);
-      return -1; // try 0
+      return -1;
     }
   int size = file_read (f, buffer, length);
   lock_release (&filesys_lock);
@@ -234,7 +232,7 @@ write (int fd, const void *buffer, unsigned length)
   if (f == NULL)
     {
       lock_release (&filesys_lock);
-      return -1; // try 0
+      return -1;
     }
   int size = file_write (f, buffer, length);
   lock_release (&filesys_lock);

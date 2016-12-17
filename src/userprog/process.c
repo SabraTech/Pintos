@@ -561,24 +561,44 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   return true;
 }
 
-/* Create a minimal stack by mapping a zeroed page at the top of
+#define STACK_SIZE 2
+/* Create a stack by mapping zeroed STACK_SIZE pages at the top of
    user virtual memory. */
 static bool
 setup_stack (void **esp)
 {
-  uint8_t *kpage;
-  bool success = false;
-
-  kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-  if (kpage != NULL)
+  uint8_t *kpage[STACK_SIZE];
+  bool install_success = false, allocate_success = true;
+  int i;
+  
+  for(i = 0; i < STACK_SIZE; i++) 
     {
-      success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
-        *esp = PHYS_BASE;
-      else
-        palloc_free_page (kpage);
+      kpage[i] = palloc_get_page (PAL_USER | PAL_ZERO);
+      if (kpage[i] == NULL) 
+        {
+          allocate_success = false;
+          while (i--)
+            palloc_free_page (kpage[i]);
+          break;
+        }
     }
-  return success;
+  if (allocate_success)
+    {
+      for(i = 0; i < STACK_SIZE; i++) 
+        {
+          install_success = install_page (((uint8_t *) PHYS_BASE) - (i + 1) * PGSIZE, 
+                                      kpage[i], true);
+          if (!install_success)
+            {
+              while (i--)
+                palloc_free_page (kpage[i]);
+              break;
+            }
+        }
+      if (install_success)
+        *esp = PHYS_BASE;
+    }
+  return install_success && allocate_success;
 }
 
 /* Adds a mapping from user virtual address UPAGE to kernel
